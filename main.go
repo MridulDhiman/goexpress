@@ -15,14 +15,16 @@ import (
 // 	routeGrp string
 // }
 
-type RouteGroup struct {
-router *Router
-prefix string
-}
 
 type Router struct {
 	routes   map[string]http.HandlerFunc
 }
+
+type RouteGroup struct {
+	router *Router
+	prefix string
+	}
+	
 
 type App struct {
 	newAddr string
@@ -39,6 +41,9 @@ func (a *App) NewApp() *App {
 		router: router,
 	}
 }
+
+
+
 
 
 func (a *App) Router() *Router {
@@ -74,42 +79,55 @@ func (r *Router) findHandler(req *http.Request) http.HandlerFunc {
 }
 
 // forward all the HTTP Request to router.Handle Method
-func (r* Router) Handle(method string, route string, handler http.HandlerFunc) {
+func (a* App) Handle(method string, route string, handler http.HandlerFunc) {
 	// it will http request methods and path against the handlers
+	a.router.Handle(method, route, handler)
+}
+
+func (r *RouteGroup) Get(route string,  handler http.HandlerFunc) {
+	r.router.Handle("GET", path.Join(r.prefix, route), handler)
+}
+func (r *RouteGroup) Post(route string,  handler http.HandlerFunc) {
+	// r.Handle("GET", path.Join(r.routeGrp, route), handler
+	r.router.Handle("POST", path.Join(r.prefix, route), handler)
+}
+func (r *RouteGroup) Put(route string,  handler http.HandlerFunc) {
+	// r.Handle("GET", path.Join(r.routeGrp, route), handler
+	r.router.Handle("PUT", path.Join(r.prefix, route), handler)
+}
+func (r *RouteGroup) Delete(route string,  handler http.HandlerFunc) {
+	// r.Handle("GET", path.Join(r.routeGrp, route), handler
+	r.router.Handle("DELETE", path.Join(r.prefix, route), handler)
+}
+
+func (a* App) NewRouteGroup (prefix string) *RouteGroup {
+	return &RouteGroup{
+		router: a.router,
+		prefix: prefix,
+	}
+}
+
+func (r* Router) Handle(method string, route string, handler http.HandlerFunc) {
 	mapKey := []string{method, route}
 	r.routes[strings.Join(mapKey, ":")] = handler
 }
 
-func (r *Router) Get(route string, handler http.HandlerFunc) {
-	r.Handle("GET", path.Join(r.routeGrp, route), handler)
-}
-
-func (r *Router) Post(route string, handler http.HandlerFunc) {
-	r.Handle("POST", path.Join(r.routeGrp, route), handler)
-}
-
-func (r *Router) Put(route string, handler http.HandlerFunc) {
-	r.Handle("PUT", path.Join(r.routeGrp, route), handler)
-}
-
-func (r *Router) Delete(route string, handler http.HandlerFunc) {
-	r.Handle("DELETE", path.Join(r.routeGrp, route), handler)
-}
 
 func (a *App) Get(path string, handler http.HandlerFunc) {
-	a.router.Get(path, handler)
+	a.Handle("GET", path, handler)
+	
 }
 
 func (a *App) Post(path string, handler http.HandlerFunc) {
-	a.router.Post(path, handler)
+	a.Handle("POST", path, handler)
 }
 
 func (a *App) Put(path string, handler http.HandlerFunc) {
-	a.router.Put(path, handler)
+	a.Handle("PUT", path, handler)
 }
 
 func (a *App) Delete(path string, handler http.HandlerFunc) {
-	a.router.Delete(path, handler)
+	a.Handle("DELETE", path, handler)
 }
 
 func (a *App) Listen(port string, Callback fnSign) {
@@ -124,11 +142,6 @@ func (a *App) Listen(port string, Callback fnSign) {
 	}
 }
 
-func (a *App) Group(pattern string, router *Router) *Router {
-	return &Router {
-
-	}
-}
 
 func main() {
 	express := new(App)
@@ -145,7 +158,11 @@ func main() {
 		w.WriteHeader(200)
 	})
 
-	helloRouter := app.Group("/user")
+	 
+	// helloRouter := app.Group("/user")
+	
+	
+    helloRouter:= app.NewRouteGroup("/user")
 	helloRouter.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "hello from /user route")
 	});
