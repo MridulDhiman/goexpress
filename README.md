@@ -1,7 +1,7 @@
 # Express.js implementation in golang 
 
 ## Features: 
-1. Custom router implementation (for golang).
+1. Custom router implementation.
 2. Route Groups 
 
 ## Key Takeways: 
