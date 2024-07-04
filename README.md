@@ -1,4 +1,4 @@
-# Express.js implementation in golang (ongoing)
+# Express.js implementation in golang 
 
 ## Features: 
 1. Custom router implementation (for golang).
