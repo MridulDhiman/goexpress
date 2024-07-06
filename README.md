@@ -2,8 +2,9 @@
 
 ## Features: 
 1. Custom router implementation.
-2. Route Groups 
-3. Local and global middleware support
+2. Route Groups.
+3. Local and global middleware support.
+4. Query and path parameter parsing.
 
 ## Key Takeways: 
 1. Whenever we make a HTTP request, browser also requests for `favicon.ico`.
@@ -14,3 +15,4 @@
 
 ## Issues(for now): 
 1. Does not check for duplicate route entries across multiple route groups
+2. Does not check for duplicate middleware entries from local and global middlewares

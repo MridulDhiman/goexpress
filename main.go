@@ -218,7 +218,6 @@ func (r *Router) Handle(method string, route string, middlewares []middlewareSig
 	r.middlewares[strings.Join(mapKey, ":")] = append(r.middlewares[strings.Join(mapKey, ":")], middlewares...)
 }
 
-
 func (a *App) NewApp() *App {
 	router := a.Router()
 	return &App{
