@@ -34,6 +34,7 @@ type Router struct {
 	queryParams map[string][]*QueryParams
 	patterns    map[string][]string
 	params      map[string]*Params
+	middlewares map[string][]*http.HandlerFunc
 }
 
 type RouteGroup struct {
@@ -59,6 +60,7 @@ func (a *App) Router() *Router {
 		queryParams: make(map[string][]*QueryParams),
 		params:      make(map[string]*Params),
 		patterns:    make(map[string][]string),
+		middlewares: make(map[string][]*http.HandlerFunc),
 	}
 }
 
@@ -142,24 +144,24 @@ func (r *Router) SetContext(req *http.Request, key any, value any) context.Conte
 }
 
 // forward all the HTTP Request to router.Handle Method
-func (a *App) Handle(method string, route string, handler http.HandlerFunc) {
+func (a *App) Handle(method string, route string, handlers ...http.HandlerFunc) {
 	// it will http request methods and path against the handlers
-	a.router.Handle(method, route, handler)
+	a.router.Handle(method, route, handlers...)
 }
 
-func (r *RouteGroup) Get(route string, handler http.HandlerFunc) {
-	r.router.Handle("GET", path.Join(r.prefix, route), handler)
+func (r *RouteGroup) Get(route string, handler ...http.HandlerFunc) {
+	r.router.Handle("GET", path.Join(r.prefix, route), handler...)
 }
 
-func (r *RouteGroup) Post(route string, handler http.HandlerFunc) {
-	r.router.Handle("POST", path.Join(r.prefix, route), handler)
+func (r *RouteGroup) Post(route string, handler ...http.HandlerFunc) {
+	r.router.Handle("POST", path.Join(r.prefix, route), handler...)
 }
 
-func (r *RouteGroup) Put(route string, handler http.HandlerFunc) {
-	r.router.Handle("PUT", path.Join(r.prefix, route), handler)
+func (r *RouteGroup) Put(route string, handler ...http.HandlerFunc) {
+	r.router.Handle("PUT", path.Join(r.prefix, route), handler...)
 }
-func (r *RouteGroup) Delete(route string, handler http.HandlerFunc) {
-	r.router.Handle("DELETE", path.Join(r.prefix, route), handler)
+func (r *RouteGroup) Delete(route string, handler ...http.HandlerFunc) {
+	r.router.Handle("DELETE", path.Join(r.prefix, route), handler...)
 }
 
 func (a *App) NewRouteGroup(prefix string) *RouteGroup {
@@ -231,7 +233,7 @@ func (r *Router) isDynamicRoute(path string) bool {
 	return re.MatchString(path)
 }
 
-func (r *Router) Handle(method string, route string, handler http.HandlerFunc) {
+func (r *Router) Handle(method string, route string, handler ...http.HandlerFunc) {
 	mapKey := []string{method, route}
 	x, err := url.Parse(route)
 	if err != nil {
@@ -241,23 +243,23 @@ func (r *Router) Handle(method string, route string, handler http.HandlerFunc) {
 	if r.isDynamicRoute(route) {
 		r.patterns[route] = r.MakePattern(route)
 	}
-	r.routes[strings.Join(mapKey, ":")] = handler
+	r.routes[strings.Join(mapKey, ":")] = handler[len(handler)-1]
 }
 
-func (a *App) Get(path string, handler http.HandlerFunc) {
-	a.Handle("GET", path, handler)
+func (a *App) Get(path string, handler ...http.HandlerFunc) {
+	a.Handle("GET", path, handler...)
 }
 
-func (a *App) Post(path string, handler http.HandlerFunc) {
-	a.Handle("POST", path, handler)
+func (a *App) Post(path string, handler ...http.HandlerFunc) {
+	a.Handle("POST", path, handler...)
 }
 
-func (a *App) Put(path string, handler http.HandlerFunc) {
-	a.Handle("PUT", path, handler)
+func (a *App) Put(path string, handler ...http.HandlerFunc) {
+	a.Handle("PUT", path, handler...)
 }
 
-func (a *App) Delete(path string, handler http.HandlerFunc) {
-	a.Handle("DELETE", path, handler)
+func (a *App) Delete(path string, handler ...http.HandlerFunc) {
+	a.Handle("DELETE", path, handler...)
 }
 
 func (a *App) Listen(port string, Callback fnSign) {
