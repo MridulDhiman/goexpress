@@ -13,6 +13,7 @@ import (
 
 type ContextKey string
 type fnSign func()
+type middlewareSign func (w http.ResponseWriter, r* http.Request, next http.HandlerFunc)
 
 const (
 	QueryParamsContext ContextKey = "query-params"
@@ -34,7 +35,8 @@ type Router struct {
 	queryParams map[string][]*QueryParams
 	patterns    map[string][]string
 	params      map[string]*Params
-	middlewares map[string][]*http.HandlerFunc
+	middlewares map[string][]middlewareSign
+	globalMiddlewares []middlewareSign
 }
 
 type RouteGroup struct {
@@ -47,22 +49,21 @@ type App struct {
 	router  *Router
 }
 
-func (a *App) NewApp() *App {
-	router := a.Router()
-	return &App{
-		router: router,
-	}
+func (r *RouteGroup) Get(route string,  middlewares []middlewareSign, handler http.HandlerFunc) {
+	r.router.Handle("GET", path.Join(r.prefix, route), middlewares, handler)
 }
 
-func (a *App) Router() *Router {
-	return &Router{
-		routes:      make(map[string]http.HandlerFunc),
-		queryParams: make(map[string][]*QueryParams),
-		params:      make(map[string]*Params),
-		patterns:    make(map[string][]string),
-		middlewares: make(map[string][]*http.HandlerFunc),
-	}
+func (r *RouteGroup) Post(route string,  middlewares []middlewareSign, handler http.HandlerFunc) {
+	r.router.Handle("POST", path.Join(r.prefix, route), middlewares, handler)
 }
+
+func (r *RouteGroup) Put(route string, middlewares []middlewareSign, handler http.HandlerFunc) {
+	r.router.Handle("PUT", path.Join(r.prefix, route), middlewares,  handler)
+}
+func (r *RouteGroup) Delete(route string, middlewares []middlewareSign, handler http.HandlerFunc) {
+	r.router.Handle("DELETE", path.Join(r.prefix, route), middlewares, handler)
+}
+
 
 // http.HandleFunc interface has ServeHTTP method
 // So, we can reverse engineer in a way like, I want to forward my ResponseWriter and request to Handler Func
@@ -111,7 +112,6 @@ func (r *Router) FindParams(req *http.Request) ([]*Params, bool) {
 }
 
 func (r *Router) FindHandlerAndParams(req *http.Request) (http.HandlerFunc, []*QueryParams) {
-
 	mapKey := []string{req.Method, req.URL.Path}
 	route := strings.Join(mapKey, ":")
 	fmt.Println("Route key", route, "findHandler()")
@@ -130,7 +130,6 @@ func (r *Router) FindHandlerAndParams(req *http.Request) (http.HandlerFunc, []*Q
 
 	}
 	fmt.Println("could not find handler: findHandler()")
-
 	return nil, nil
 }
 
@@ -141,34 +140,6 @@ func (r *Router) GetContext(req *http.Request, key any) any {
 
 func (r *Router) SetContext(req *http.Request, key any, value any) context.Context {
 	return context.WithValue(req.Context(), key, value)
-}
-
-// forward all the HTTP Request to router.Handle Method
-func (a *App) Handle(method string, route string, handlers ...http.HandlerFunc) {
-	// it will http request methods and path against the handlers
-	a.router.Handle(method, route, handlers...)
-}
-
-func (r *RouteGroup) Get(route string, handler ...http.HandlerFunc) {
-	r.router.Handle("GET", path.Join(r.prefix, route), handler...)
-}
-
-func (r *RouteGroup) Post(route string, handler ...http.HandlerFunc) {
-	r.router.Handle("POST", path.Join(r.prefix, route), handler...)
-}
-
-func (r *RouteGroup) Put(route string, handler ...http.HandlerFunc) {
-	r.router.Handle("PUT", path.Join(r.prefix, route), handler...)
-}
-func (r *RouteGroup) Delete(route string, handler ...http.HandlerFunc) {
-	r.router.Handle("DELETE", path.Join(r.prefix, route), handler...)
-}
-
-func (a *App) NewRouteGroup(prefix string) *RouteGroup {
-	return &RouteGroup{
-		router: a.router,
-		prefix: prefix,
-	}
 }
 
 func (r *Router) SetQueryParams(searchKey string, queryParams url.Values) {
@@ -233,7 +204,7 @@ func (r *Router) isDynamicRoute(path string) bool {
 	return re.MatchString(path)
 }
 
-func (r *Router) Handle(method string, route string, handler ...http.HandlerFunc) {
+func (r *Router) Handle(method string, route string, middlewares []middlewareSign, handler http.HandlerFunc) {
 	mapKey := []string{method, route}
 	x, err := url.Parse(route)
 	if err != nil {
@@ -243,23 +214,60 @@ func (r *Router) Handle(method string, route string, handler ...http.HandlerFunc
 	if r.isDynamicRoute(route) {
 		r.patterns[route] = r.MakePattern(route)
 	}
-	r.routes[strings.Join(mapKey, ":")] = handler[len(handler)-1]
+	r.routes[strings.Join(mapKey, ":")] = handler
+	r.middlewares[strings.Join(mapKey, ":")] = append(r.middlewares[strings.Join(mapKey, ":")], middlewares...)
 }
 
-func (a *App) Get(path string, handler ...http.HandlerFunc) {
-	a.Handle("GET", path, handler...)
+
+func (a *App) NewApp() *App {
+	router := a.Router()
+	return &App{
+		router: router,
+	}
 }
 
-func (a *App) Post(path string, handler ...http.HandlerFunc) {
-	a.Handle("POST", path, handler...)
+func (a *App) Router() *Router {
+	return &Router{
+		routes:      make(map[string]http.HandlerFunc),
+		queryParams: make(map[string][]*QueryParams),
+		params:      make(map[string]*Params),
+		patterns:    make(map[string][]string),
+		middlewares: make(map[string][]middlewareSign),
+		globalMiddlewares: make([]middlewareSign, 1),
+	}
 }
 
-func (a *App) Put(path string, handler ...http.HandlerFunc) {
-	a.Handle("PUT", path, handler...)
+// forward all the HTTP Request to router.Handle Method
+func (a *App) Handle(method string, route string, middlewares []middlewareSign, handlers http.HandlerFunc) {
+	// it will http request methods and path against the handlers
+	a.router.Handle(method, route, middlewares,  handlers)
 }
 
-func (a *App) Delete(path string, handler ...http.HandlerFunc) {
-	a.Handle("DELETE", path, handler...)
+func (a *App) NewRouteGroup(prefix string) *RouteGroup {
+	return &RouteGroup{
+		router: a.router,
+		prefix: prefix,
+	}
+}
+
+func (a *App) Get(path string,  middlewares []middlewareSign, handler http.HandlerFunc)  {
+	a.Handle("GET", path, middlewares, handler)
+}
+
+func (a *App) Post(path string, middlewares []middlewareSign,  handler http.HandlerFunc) {
+	a.Handle("POST", path, middlewares, handler)
+}
+
+func (a *App) Put(path string, middlewares []middlewareSign, handler http.HandlerFunc) {
+	a.Handle("PUT", path, middlewares, handler)
+}
+
+func (a *App) Delete(path string, middlewares []middlewareSign, handler http.HandlerFunc) {
+	a.Handle("DELETE", path, middlewares, handler)
+}
+
+func (a* App) Use (middleware middlewareSign) {
+	a.router.globalMiddlewares = append(a.router.globalMiddlewares, middleware)
 }
 
 func (a *App) Listen(port string, Callback fnSign) {
@@ -278,22 +286,22 @@ func main() {
 	app := express.NewApp()
 	PORT := "3000"
 
-	app.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	app.Get("/", nil,  func(w http.ResponseWriter, r *http.Request) {
 		// writing to response
 		fmt.Fprintf(w, "Hello")
 	})
 
-	app.Get("/:id", func(w http.ResponseWriter, r *http.Request) {
+	app.Get("/:id", nil, func(w http.ResponseWriter, r *http.Request) {
 
 	})
 
-	app.Get("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+	app.Get("/favicon.ico",nil, func(w http.ResponseWriter, r *http.Request) {
 		// sending favicon.ico
 		w.WriteHeader(200)
 	})
 
 	helloRouter := app.NewRouteGroup("/user")
-	helloRouter.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	helloRouter.Get("/",nil, func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "hello from /user route")
 	})
 
