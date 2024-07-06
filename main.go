@@ -236,6 +236,14 @@ func (a *App) Router() *Router {
 	}
 }
 
+func (a* App) GetQueryParams(r* http.Request) []*QueryParams {
+	return a.router.GetContext(r, QueryParamsContext).([]*QueryParams)
+}
+
+func (a* App) GetPathParams(r* http.Request) []*Params {
+	return a.router.GetContext(r, PathParamsContext).([]*Params)
+}
+
 // forward all the HTTP Request to router.Handle Method
 func (a *App) Handle(method string, route string, middlewares []middlewareSign, handlers http.HandlerFunc) {
 	// it will http request methods and path against the handlers
