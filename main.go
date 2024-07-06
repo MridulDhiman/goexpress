@@ -13,7 +13,7 @@ import (
 
 type ContextKey string
 type fnSign func()
-type middlewareSign func (w http.ResponseWriter, r* http.Request, next http.HandlerFunc)
+type middlewareSign func (w http.ResponseWriter, r* http.Request) (http.ResponseWriter, *http.Request)
 
 const (
 	QueryParamsContext ContextKey = "query-params"
@@ -71,12 +71,10 @@ func (r *RouteGroup) Delete(route string, middlewares []middlewareSign, handler 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// find the handler from the routes
 	// handler (or we can call it, controller in express.js context)
-
+	r.HandleMiddlewares(w, req, r.globalMiddlewares)
 	params, paramsOk := r.FindParams(req)
-
-	if handler, queryParams := r.FindHandlerAndParams(req); handler != nil {
+	if handler, queryParams := r.FindHandlerAndParams(w, req); handler != nil {
 		// add context here
-
 		if queryParams != nil || paramsOk {
 			ctx := req.Context()
 			ctx = r.SetContext(req, QueryParamsContext, queryParams)
@@ -90,6 +88,17 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		temp := []string{req.URL.Path, req.Method, "Not Found"}
 		fmt.Fprintln(w, strings.Join(temp, " "))
 	}
+}
+
+func (r* Router) HandleMiddlewares(w http.ResponseWriter, req* http.Request, middlewares []middlewareSign) (http.ResponseWriter, *http.Request) {
+httpResponseWriter:= w
+httpRequest:= req
+for _, middleware := range middlewares {
+		x,y:= middleware(httpResponseWriter, httpRequest)
+		httpResponseWriter = x
+		httpRequest = y
+}
+	return httpResponseWriter, httpRequest
 }
 
 func (r *Router) FindParams(req *http.Request) ([]*Params, bool) {
@@ -111,10 +120,11 @@ func (r *Router) FindParams(req *http.Request) ([]*Params, bool) {
 	return kvStore, false
 }
 
-func (r *Router) FindHandlerAndParams(req *http.Request) (http.HandlerFunc, []*QueryParams) {
+func (r *Router) FindHandlerAndParams(w http.ResponseWriter, req *http.Request) (http.HandlerFunc, []*QueryParams) {
 	mapKey := []string{req.Method, req.URL.Path}
 	route := strings.Join(mapKey, ":")
 	fmt.Println("Route key", route, "findHandler()")
+	r.HandleMiddlewares(w,req, r.middlewares[route])
 	handler, ok := r.routes[route]
 	queryParams, queryOk := r.queryParams[route]
 	if ok || queryOk {
